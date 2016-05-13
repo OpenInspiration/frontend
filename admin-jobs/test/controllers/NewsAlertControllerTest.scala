@@ -5,6 +5,7 @@ import java.util.UUID
 
 import akka.actor.Status.{Failure => ActorFailure}
 import akka.actor.{Actor, Props}
+import akka.stream.Materializer
 import common.ExecutionContexts
 import controllers.BreakingNews.{BreakingNewsApi, S3BreakingNews}
 import models.{NewsAlertNotification, NewsAlertTypes}
@@ -16,6 +17,8 @@ import play.api.test.Helpers._
 import test.ConfiguredTestSuite
 
 @DoNotDiscover class NewsAlertControllerTest extends WordSpec with Matchers with ConfiguredTestSuite with ExecutionContexts {
+
+  implicit lazy val mat: Materializer = app.materializer
 
   val testApiKey = "test-api-key"
 

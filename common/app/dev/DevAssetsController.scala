@@ -1,11 +1,13 @@
 package dev
 
+import akka.stream.scaladsl.StreamConverters
 import common.Assets.AssetNotFoundException
 import common.ExecutionContexts
 import java.io.File
 import model.{NoCache, Cached}
 import model.Cached.WithoutRevalidationResult
 import play.api.Play
+import play.api.http.HttpEntity
 import play.api.libs.MimeTypes
 import play.api.mvc._
 import play.api.libs.iteratee.Enumerator
@@ -37,8 +39,10 @@ class DevAssetsController extends Controller with ExecutionContexts {
       findDevAsset.lift(path)
     }
 
-    val resolved = assetPath map {
-        new File(_).toURI.toURL
+    val file = assetPath.map(path => new File(path))
+
+    val resolved = file map {
+        _.toURI.toURL
       } getOrElse {
         throw AssetNotFoundException(path)
       }
@@ -50,7 +54,10 @@ class DevAssetsController extends Controller with ExecutionContexts {
 
       val result = Result(
         ResponseHeader(OK, Map(CONTENT_TYPE -> contentType)),
-        Enumerator.fromStream(resolved.openStream())
+        HttpEntity.Streamed(
+          data = StreamConverters.fromInputStream(resolved.openStream),
+          contentLength = file.map(_.length),
+          contentType = Some(contentType))
       )
 
       // WebDriver caches during tests. Caching CSS during tests might speed some things up.
