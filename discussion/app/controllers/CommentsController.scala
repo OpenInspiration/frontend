@@ -12,6 +12,7 @@ import play.api.mvc.{Action, RequestHeader, Result}
 import play.filters.csrf.{CSRFAddToken, CSRFCheck, CSRFConfig}
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
 class CommentsController(csrfConfig: CSRFConfig, val discussionApi: DiscussionApiLike) extends DiscussionController with ExecutionContexts {

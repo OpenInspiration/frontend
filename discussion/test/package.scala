@@ -1,6 +1,9 @@
 package test
 
+import akka.util.{CompactByteString, ByteString}
 import conf.Configuration
+import org.asynchttpclient.HttpResponseStatus
+import org.asynchttpclient.netty.NettyResponse
 import controllers.HealthCheck
 import org.scalatest.{BeforeAndAfterAll, Suites}
 import recorder.DefaultHttpRecorder
@@ -26,7 +29,7 @@ class DiscussionApiStub(val wsClient: WSClient) extends DiscussionApiLike {
   protected val apiTimeout = conf.Configuration.discussion.apiTimeout
 
   override protected def GET(url: String, headers: (String, String)*) = DiscussionApiHttpRecorder.load(url, Map.empty){
-    wsClient.url(url).withRequestTimeout(2000).get()
+    wsClient.url(url).withRequestTimeout(2.seconds).get()
   }
 }
 

@@ -10,6 +10,7 @@ import java.net.URI
 import play.api.libs.ws.WSClient
 import com.amazonaws.util.StringInputStream
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 
 sealed trait Destination {
@@ -52,7 +53,7 @@ class DynamoDB(wsClient: WSClient) extends Logging with ExecutionContexts {
       val headers = signedHeaders(DynamoDbGet, bodyContent)
 
       val asyncRequest = wsClient.url(s"http://${AwsEndpoints.dynamoDb}")
-        .withRequestTimeout(1000)
+        .withRequestTimeout(1.second)
         .withHeaders(headers:_*)
 
       asyncRequest.post(bodyContent).map(_.json).map{ json =>
