@@ -6,7 +6,7 @@ import play.api.ApplicationLoader.Context
 import play.api._
 import play.api.http.HttpFilters
 import play.api.inject.{NewInstanceInjector, SimpleInjector, Injector}
-import play.api.libs.ws.ning.NingWSComponents
+import play.api.libs.ws.ahc.AhcWSComponents
 import play.api.mvc.EssentialFilter
 import play.api.routing.Router
 import play.filters.csrf.CSRFComponents
@@ -27,7 +27,9 @@ trait FrontendApplicationLoader extends ApplicationLoader {
   }
 
   override def load(context: Context): Application = {
-    Logger.configure(context.environment)
+    LoggerConfigurator(context.environment.classLoader).foreach {
+      _.configure(context.environment)
+    }
     val components = buildComponents(context)
     fakeOnStart(components)
     components.application
@@ -39,7 +41,7 @@ trait FrontendComponents
   with ExecutionContextComponent
   with HttpFiltersComponent
   with BuiltInComponents
-  with NingWSComponents
+  with AhcWSComponents
   with CSRFComponents {
   self: BuiltInComponents =>
 
@@ -53,7 +55,7 @@ trait FrontendComponents
 
   // this is a workaround to make wsapi and the actorsystem available to the injector.
   // I'm forced to do that as we still use Ws.url and Akka.system(app) *everywhere*, and both directly get the reference from the injector
-  override lazy val injector: Injector = new SimpleInjector(NewInstanceInjector) + router + crypto + httpConfiguration + wsApi + actorSystem + csrfConfig
+  override lazy val injector: Injector = new SimpleInjector(NewInstanceInjector) + router + cookieSigner + csrfTokenSigner + httpConfiguration + tempFileCreator + global + crypto + wsApi + actorSystem + csrfConfig
 
   // here are the attributes you must provide for your app to start
   def appIdentity: ApplicationIdentity
