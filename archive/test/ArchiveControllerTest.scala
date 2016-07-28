@@ -13,7 +13,7 @@ import services.DynamoDB
   with Matchers
   with ConfiguredTestSuite
   with BeforeAndAfterAll
-  with WithTestWsClient {
+  with WithMaterializer with WithTestWsClient {
 
   lazy val archiveController = new ArchiveController(new DynamoDB(wsClient))
 

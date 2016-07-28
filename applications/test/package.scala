@@ -42,6 +42,7 @@ class ApplicationsTestSuite extends Suites (
   new NewspaperControllerTest
 ) with SingleServerSuite
   with BeforeAndAfterAll
+  with WithMaterializer 
   with WithTestWsClient
   with WithTestContentApiClient {
 

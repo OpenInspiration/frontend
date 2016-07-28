@@ -18,6 +18,7 @@ class ArticleTestSuite extends Suites (
   new PublicationControllerTest
 ) with SingleServerSuite
   with BeforeAndAfterAll
+  with WithMaterializer
   with WithTestWsClient {
 
   override lazy val port: Int = new HealthCheck(wsClient).testPort

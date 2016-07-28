@@ -13,8 +13,7 @@ class AdminTestSuite extends Suites (
   new controllers.admin.DeploysRadiatorControllerTest,
   new controllers.admin.DeploysNotifyControllerTest
 ) with SingleServerSuite
-  with BeforeAndAfterAll
-  with WithTestWsClient {
+  with BeforeAndAfterAll with WithMaterializer with WithTestWsClient {
 
   override lazy val port: Int = new controllers.HealthCheck(wsClient).testPort
 }

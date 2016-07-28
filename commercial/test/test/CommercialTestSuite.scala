@@ -4,7 +4,7 @@ import commercial.controllers.HealthCheck
 import model.commercial._
 import model.commercial.books._
 import org.scalatest.{BeforeAndAfterAll, Suites}
-import test.{SingleServerSuite, WithTestWsClient}
+import test.{SingleServerSuite, WithMaterializer, WithTestWsClient}
 
 class CommercialTestSuite extends Suites (
   new commercial.controllers.TravelOffersControllerTest,
@@ -19,6 +19,7 @@ class CommercialTestSuite extends Suites (
   new BookTest
 ) with SingleServerSuite
   with BeforeAndAfterAll
+  with WithMaterializer
   with WithTestWsClient {
 
   override lazy val port: Int = new HealthCheck(wsClient).testPort

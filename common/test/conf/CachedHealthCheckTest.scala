@@ -7,7 +7,7 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import play.api.mvc.Result
 import play.api.test.FakeRequest
 import play.api.test.Helpers._
-import test.{SingleServerSuite, WithTestWsClient}
+import test.{SingleServerSuite, WithMaterializer, WithTestWsClient}
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.Future
@@ -16,14 +16,13 @@ import scala.util.Random
 
 class CachedHealthCheckTest
   extends WordSpec
-  with Matchers
-  with SingleServerSuite
-  with ScalaFutures
-  with ExecutionContexts
-  with BeforeAndAfterAll
-  with WithTestWsClient {
-
-  implicit def materializer: Materializer = app.materializer
+    with Matchers
+    with SingleServerSuite
+    with ScalaFutures
+    with ExecutionContexts
+    with BeforeAndAfterAll
+    with WithMaterializer
+    with WithTestWsClient {
 
   //Helper method to construct mock Results
   def mockResult(statusCode: Int, date: DateTime = DateTime.now, expiration: HealthCheckExpiration = HealthCheckExpires.Duration(10.seconds)): HealthCheckResult = {

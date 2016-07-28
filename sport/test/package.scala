@@ -34,7 +34,8 @@ class SportTestSuite extends Suites (
   new MatchFeatureTest,
   new ResultsFeatureTest,
   new rugby.model.MatchParserTest
-) with SingleServerSuite with BeforeAndAfterAll with WithTestWsClient {
+) with SingleServerSuite with FootballTestData with BeforeAndAfterAll with WithMaterializer with WithTestWsClient {
+
   override lazy val port: Int = new HealthCheck(wsClient).testPort
 }
 
