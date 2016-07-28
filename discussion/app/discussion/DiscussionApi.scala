@@ -5,6 +5,7 @@ import java.net.URLEncoder
 import common.{ExecutionContexts, Logging}
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import discussion.model._
 import play.api.mvc.{Cookie, Headers, RequestHeader}
 import discussion.util.Http
@@ -197,7 +198,7 @@ trait DiscussionApiLike extends Http with ExecutionContexts with Logging {
     val url = s"${apiRoot}/comment/${abuseReport.commentId}/reportAbuse"
     val headers = Seq("D2-X-UID" -> conf.Configuration.discussion.d2Uid, guClientHeader)
     if (cookie.isDefined) { headers :+  ("Cookie"->s"SC_GU_U=${cookie.get}") }
-    wsClient.url(url).withHeaders(headers: _*).withRequestTimeout(2000).post(abuseReportToMap(abuseReport))
+    wsClient.url(url).withHeaders(headers: _*).withRequestTimeout(2.seconds).post(abuseReportToMap(abuseReport))
 
   }
 }

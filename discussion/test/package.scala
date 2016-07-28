@@ -1,9 +1,6 @@
 package test
 
-import akka.util.{CompactByteString, ByteString}
 import conf.Configuration
-import org.asynchttpclient.HttpResponseStatus
-import org.asynchttpclient.netty.NettyResponse
 import controllers.HealthCheck
 import org.scalatest.{BeforeAndAfterAll, Suites}
 import recorder.DefaultHttpRecorder
