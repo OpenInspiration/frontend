@@ -6,7 +6,7 @@ import org.scalatest.{BeforeAndAfterAll, Suites}
 import recorder.DefaultHttpRecorder
 import play.api.libs.ws.WSClient
 import java.io.File
-
+import scala.concurrent.duration._
 import discussion.DiscussionApiLike
 
 
