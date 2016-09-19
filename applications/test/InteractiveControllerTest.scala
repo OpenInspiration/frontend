@@ -11,11 +11,12 @@ import scala.collection.JavaConversions._
   with Matchers
   with ConfiguredTestSuite
   with BeforeAndAfterAll
+  with WithMaterializer
   with WithTestWsClient
   with WithTestContentApiClient {
 
   val url = "lifeandstyle/ng-interactive/2016/mar/12/stephen-collins-cats-cartoon"
-  val interactiveController = new InteractiveController(testContentApiClient)
+  lazy val interactiveController = new InteractiveController(testContentApiClient)
 
   "Interactive Controller" should "200 when content type is 'interactive'" in {
     val result = interactiveController.renderInteractive(url)(TestRequest(url))
