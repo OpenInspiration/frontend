@@ -2,10 +2,9 @@ package model.commercial.events
 
 import java.lang.System._
 
-import commercial.feeds.{FeedMetaData, MissingFeedException, ParsedFeed, SwitchOffException}
+import commercial.feeds._
 import common.{ExecutionContexts, Logging}
 import org.joda.time.DateTime
-import play.api.data.validation.ValidationError
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 
@@ -15,173 +14,99 @@ import scala.util.control.NonFatal
 
 object Eventbrite extends ExecutionContexts with Logging {
 
-  case class EBResponse(pagination: EBPagination, events: Seq[EBEvent])
+  case class Response(pagination: Pagination, events: Seq[Event])
 
-  object EBResponse {
+  case class Pagination(page_number: Int, page_count: Int)
 
-    implicit val ebResponseReads: Reads[EBResponse] = (
-      (JsPath \ "pagination").read[EBPagination] and
-        (JsPath \ "events").read[Seq[EBEvent]]
-      ) (EBResponse.apply _)
+  case class Event(id: String,
+                   name: String,
+                   start_date: DateTime,
+                   url: String,
+                   description: String,
+                   image_url: Option[String],
+                   status: String,
+                   venue: Venue,
+                   tickets: Seq[Ticket],
+                   capacity: Int)
+
+  case class Ticket(hidden: Boolean,
+                    donation: Boolean,
+                    price: Double,
+                    quantity_total: Int,
+                    quantity_sold: Int)
+
+  case class Venue(name: Option[String],
+                   address: Option[String],
+                   address2: Option[String],
+                   city: Option[String],
+                   country: Option[String],
+                   postcode: Option[String]) {
+
+    val description = Eventbrite.venueDescription(this)
   }
 
-  case class EBPagination(pageNumber: Int, pageCount: Int)
+  def venueDescription(v: Venue): String = Seq(v.name, v.city orElse v.country).flatten mkString ", "
 
-  object EBPagination {
+  implicit val jodaDateTimeFormats: Format[DateTime] = {
 
-    implicit val readsPagination: Reads[EBPagination] = (
-      (JsPath \ "page_number").read[Int] and
-        (JsPath \ "page_count").read[Int]
-      ) (EBPagination.apply _)
+    val dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+    Format(Reads.jodaDateReads(dateFormat), Writes.jodaDateWrites(dateFormat))
   }
 
-  case class EBEvent(id: String,
-                     name: String,
-                     startDate: DateTime,
-                     url: String,
-                     description: String,
-                     imageUrl: Option[String],
-                     status: String,
-                     venue: EBVenue,
-                     tickets: Seq[EBTicket],
-                     capacity: Int
-                    )
+  implicit val ticketReads: Reads[Ticket] = (
+    (JsPath \ "hidden").read[Boolean] and
+    (JsPath \ "donation").read[Boolean] and
+    (JsPath \ "cost" \ "value").read[Double].map(pence => pence / 100) and
+    (JsPath \ "quantity_total").read[Int] and
+    (JsPath \ "quantity_sold").read[Int]
+    ) (Ticket.apply _)
 
-  object EBEvent {
+  implicit val ticketWrites: Writes[Ticket] = Json.writes[Ticket]
 
-    def apply(id: String,
-              name: String,
-              startDate: DateTime,
-              url: String,
-              description: String,
-              status: String,
-              venue: EBVenue,
-              tickets: Seq[Option[EBTicket]],
-              capacity: Int): EBEvent = {
+  implicit val venueReads: Reads[Venue] = (
+    (JsPath \ "name").readNullable[String] and
+    (JsPath \ "address" \ "address_1").readNullable[String] and
+    (JsPath \ "address" \ "address_2").readNullable[String] and
+    (JsPath \ "address" \ "city").readNullable[String] and
+    (JsPath \ "address" \ "country").readNullable[String] and
+    (JsPath \ "address" \ "postal_code").readNullable[String]
+    ) (Venue.apply _)
 
-      new EBEvent(
-        id,
-        name,
-        startDate,
-        url,
-        description,
-        None,
-        status,
-        venue,
-        tickets.flatten,
-        capacity
-      )
-    }
+  implicit val venueWrites: Writes[Venue] = Json.writes[Venue]
 
-    private lazy val dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
-    implicit val jodaDateTimeReads: Reads[DateTime] = Reads.jodaDateReads(dateFormat)
-    implicit val eventReads: Reads[EBEvent] = (
+  implicit val eventReads: Reads[Event] = (
+    (JsPath \ "id").read[String] and
+    (JsPath \ "name" \ "text").read[String] and
+    (JsPath \ "start" \ "utc").read[DateTime] and
+    (JsPath \ "url").read[String] and
+    (JsPath \ "description" \ "html").read[String] and
+    (JsPath \ "image_url").readNullable[String] and // not present in JSON; see usages of `buildEventWithImageSrc`
+    (JsPath \ "status").read[String] and
+    (JsPath \ "venue").read[Venue] and
+    (JsPath \ "ticket_classes").read[Seq[Ticket]].map(excludeFreeAndHidenTickets) and
+    (JsPath \ "capacity").read[Int]
+    ) (Event.apply _)
 
-      (JsPath \ "id").read[String] and
-        (JsPath \ "name" \ "text").read[String] and
-        (JsPath \ "start" \ "utc").read[DateTime] and
-        (JsPath \ "url").read[String] and
-        (JsPath \ "description" \ "html").read[String] and
-        (JsPath \ "status").read[String] and
-        (JsPath \ "venue").read[EBVenue] and
-        (JsPath \ "ticket_classes").read[Seq[Option[EBTicket]]] and
-        (JsPath \ "capacity").read[Int]
-      ) (EBEvent.apply(_: String, _: String, _: DateTime, _: String, _: String, _: String, _: EBVenue, _: Seq[Option[EBTicket]], _: Int))
+  implicit val eventWrites: Writes[Event] = Json.writes[Event]
 
-    implicit val eventsReads: Reads[Seq[EBEvent]] = new Reads[Seq[EBEvent]] {
-      override def reads(json: JsValue): JsResult[Seq[EBEvent]] = {
-        json match {
-          case JsArray(jsValues) => JsSuccess(jsValues.flatMap(_.asOpt[EBEvent]))
-          case _ => JsError(Seq(JsPath() -> Seq(ValidationError("error.expected.jsarray"))))
-        }
-      }
-    }
+  // we don't want to include donation/hidden ticket prices - these are odd cases and don't bring in the $$$
+  def excludeFreeAndHidenTickets(tickets: Seq[Ticket]): Seq[Ticket] =
+    tickets.filterNot(ticket => ticket.hidden || ticket.donation)
 
-    def buildEventWithImageSrc(event: EBEvent, src: String) = {
-      new EBEvent(
-        event.id,
-        event.name,
-        event.startDate,
-        event.url,
-        event.description,
-        Some(src),
-        event.status,
-        event.venue,
-        event.tickets,
-        event.capacity
-      )
-    }
-  }
 
-  case class EBTicket(price: Double, quantityTotal: Int, quantitySold: Int)
+  implicit val paginationFormats: Format[Pagination] = Json.format[Pagination]
 
-  object EBTicket {
+  implicit val responseFormats: Format[Response] = Json.format[Response]
 
-    def buildTicket(hidden: Boolean, donation: Boolean, valuePence: Double, quantityTotal: Int, quantitySold: Int): Option[EBTicket] = {
-      if (hidden || donation) {
-        None
-      } else {
-        Some(EBTicket(valuePence / 100, quantityTotal, quantitySold))
-      }
-    }
+  def buildEventWithImageSrc(event: Event, src: String): Event = event.copy(image_url=Some(src))
 
-    implicit val ticketReads: Reads[Option[EBTicket]] = (
-      (JsPath \ "hidden").read[Boolean] and
-        (JsPath \ "donation").read[Boolean] and
-        (JsPath \ "cost" \ "value").read[Double].orElse(Reads.pure(0.00)) and
-        (JsPath \ "quantity_total").read[Int] and
-        (JsPath \ "quantity_sold").read[Int]
-      ) (EBTicket.buildTicket _)
-
-    implicit val ticketsReads: Reads[Seq[EBTicket]] = new Reads[Seq[EBTicket]] {
-      override def reads(json: JsValue): JsResult[Seq[EBTicket]] = {
-        json match {
-          case JsArray(jsValues) => JsSuccess(jsValues.flatMap(_.as[Option[EBTicket]]))
-          case _ => JsError(Seq(JsPath() -> Seq(ValidationError("error.expected.jsarray"))))
-        }
-      }
-    }
-
-    implicit val ticketWrites: Writes[EBTicket] = Json.writes[EBTicket]
-  }
-
-  case class EBVenue(name: Option[String],
-                     address: Option[String],
-                     address2: Option[String],
-                     city: Option[String],
-                     country: Option[String],
-                     postcode: Option[String]) {
-
-    val description = Seq(name, city orElse country).flatten mkString ", "
-  }
-
-  object EBVenue {
-
-    implicit val venueReads: Reads[EBVenue] = {
-
-      def captureEmptyString(x: Reads[Option[String]]): Reads[Option[String]] = {
-        x map (el => if (el.getOrElse("").length == 0) None else el)
-      }
-
-      (
-        captureEmptyString((JsPath \ "name").readNullable[String]) and
-          captureEmptyString((JsPath \ "address" \ "address_1").readNullable[String]) and
-          captureEmptyString((JsPath \ "address" \ "address_2").readNullable[String]) and
-          captureEmptyString((JsPath \ "address" \ "city").readNullable[String]) and
-          captureEmptyString((JsPath \ "address" \ "country").readNullable[String]) and
-          captureEmptyString((JsPath \ "address" \ "postal_code").readNullable[String])
-        ) (EBVenue.apply _)
-    }
-
-    implicit val venueWrites: Writes[EBVenue] = Json.writes[EBVenue]
-  }
-  def parsePagesOfEvents(feedMetaData: FeedMetaData, feedContent: => Option[String]): Future[ParsedFeed[EBEvent]] = {
+  def parsePagesOfEvents(feedMetaData: FeedMetaData, feedContent: => Option[String]): Future[ParsedFeed[Event]] = {
 
     feedMetaData.parseSwitch.isGuaranteedSwitchedOn flatMap { switchedOn =>
       if (switchedOn) {
         val start = currentTimeMillis
         feedContent map { body =>
-          val responses = Json.parse(body).as[Seq[EBResponse]]
+          val responses = Json.parse(body).as[Seq[Response]]
           val events = responses flatMap {_.events}
 
           Future(ParsedFeed(
@@ -199,21 +124,23 @@ object Eventbrite extends ExecutionContexts with Logging {
     }
   }
 
-  trait EBTicketHandler {
-    def tickets: Seq[EBTicket]
+  trait TicketHandler {
+    def tickets: Seq[Ticket]
 
-    lazy val displayPrice = {
-      val priceList = tickets.map(_.price).sorted.distinct
-      if (priceList.size > 1) {
-        val (low, high) = (priceList.head, priceList.last)
-        f"£$low%,.2f to £$high%,.2f"
-      } else f"£${priceList.head}%,.2f"
+    lazy val displayPriceRange = {
+
+      def format(price: Double): String = f"£$price%,.2f"
+
+      val prices = tickets.map(_.price)
+      val (low, high) = (prices.min, prices.max)
+
+      if (low == high) format(high) else s"${format(low)} to ${high}"
     }
 
-    lazy val ratioTicketsLeft = 1 - (tickets.map(_.quantitySold).sum.toDouble / tickets.map(_.quantityTotal).sum)
+    lazy val ratioTicketsLeft = 1 - (tickets.map(_.quantity_sold).sum.toDouble / tickets.map(_.quantity_total).sum)
   }
 
-  trait EBEventHandler {
+  trait EventHandler {
     def status: String
     lazy val isOpen = { status == "live" }
   }

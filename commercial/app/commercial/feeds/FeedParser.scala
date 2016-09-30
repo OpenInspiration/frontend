@@ -99,3 +99,5 @@ class FeedsParser(bestsellersAgent: BestsellersAgent,
 case class ParsedFeed[+T](contents: Seq[T], parseDuration: Duration)
 
 case class MissingFeedException(feedName: String) extends Exception(s"Missing feed: $feedName")
+
+case class MalformedFeedException(feedName: String) extends Exception(s"Malformed feed: $feedName")
